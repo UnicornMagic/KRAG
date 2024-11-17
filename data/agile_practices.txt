@@ -1,0 +1,4 @@
+Agile Way of Working:
+- Daily stand-ups should last no more than 15 minutes.
+- Sprint duration is 2 weeks with a focus on deliverables.
+- Retrospectives are mandatory to reflect on team processes.

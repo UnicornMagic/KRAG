@@ -1,0 +1,8 @@
+API Documentation:
+- Endpoint: POST /api/v1/create-user
+  Description: Creates a new user in the system.
+  Required Parameters: name, email, password.
+
+- Endpoint: GET /api/v1/user-profile
+  Description: Retrieves user profile information.
+  Required Headers: Authorization token.
