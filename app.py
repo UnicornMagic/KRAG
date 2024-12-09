@@ -3,6 +3,8 @@ import csv
 from datetime import datetime
 import streamlit as st
 from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.llms import OpenAI
+from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -70,7 +72,10 @@ def process_uploaded_file(uploaded_file, vectorstore, embeddings):
 
     return len(docs)
 
-# Streamlit app
+# Initialize the LLM
+llm = OpenAI(openai_api_key=OPENAI_API_KEY, temperature=0)
+
+#Streamlit app 
 def main():
     st.title("Knowledge Retrieval App")
     st.write("Ask a question about internal policies, tools, or ways of working!")
@@ -78,32 +83,45 @@ def main():
     # Load the vector store
     vectorstore = load_vectorstore(VECTOR_DB_DIR)
 
-    # User input
+    # Create a retriever from the vectorstore
+    # Set top_k to reduce the number of retrieved chunks if desired
     query = st.text_input("Enter your query:", "")
     top_k = st.slider("Number of results to display:", 1, 10, 3)
 
+    # Create a RetrievalQA chain that uses the vectorstore as a retriever
+    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",    # "stuff" simply puts all retrieved text into context
+        retriever=retriever
+    )
+
     if query:
         with st.spinner("Searching for answers..."):
-            results = query_vectorstore(vectorstore, query, top_k=top_k)
-        if results:
-            st.success("Results:")
-            for i, result in enumerate(results, start=1):
-                st.markdown(f"### Result {i}")
-                st.write(result.page_content)
+            # Instead of just retrieving chunks, we now get a final answer from the LLM
+            answer = qa_chain.run(query)
 
-                # Feedback buttons
-                st.write("Was this result helpful?")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"👍 Yes (Result {i})"):
-                        save_feedback(query, result.page_content, "Yes")
-                        st.success("Feedback saved!")
-                with col2:
-                    if st.button(f"👎 No (Result {i})"):
-                        save_feedback(query, result.page_content, "No")
-                        st.warning("Feedback saved!")
-        else:
-            st.warning("No results found.")
+        if answer:
+            st.success("Answer:")
+            st.write(answer)
+
+            # Optional: If you still want to show the raw chunks
+            # results = retriever.get_relevant_documents(query)
+            # for i, doc in enumerate(results, start=1):
+            #     st.markdown(f"### Source {i}")
+            #     st.write(doc.page_content)
+
+            # Feedback buttons
+            st.write("Was this result helpful?")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("👍 Yes"):
+                    save_feedback(query, answer, "Yes")
+                    st.success("Feedback saved!")
+            with col2:
+                if st.button("👎 No"):
+                    save_feedback(query, answer, "No")
+                    st.warning("Feedback saved!")
     
     # File upload
     st.write("---")
